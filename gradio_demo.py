@@ -171,7 +171,7 @@ def text_to_audio(prompt: str, negative_prompt: str, seed: int, num_steps: int, 
 
     current_time_string = datetime.now().strftime('%Y%m%d_%H%M%S')
     output_dir.mkdir(exist_ok=True, parents=True)
-    audio_save_path = output_dir / f'{current_time_string}.flac'
+    audio_save_path = output_dir / f'{current_time_string}.wav'
     torchaudio.save(audio_save_path, audio, seq_cfg.sampling_rate)
     gc.collect()
     return audio_save_path
