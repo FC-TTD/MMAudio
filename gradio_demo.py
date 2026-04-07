@@ -32,13 +32,11 @@ else:
 dtype = torch.bfloat16
 
 model_config: ModelConfig = all_model_cfg['large_44k_v2']
-model_config.download_if_needed()
 output_dir = Path('./output/gradio')
-
-setup_eval_logging()
 
 
 def load_model_components() -> tuple[MMAudio, FeaturesUtils, SequenceConfig]:
+    model_config.download_if_needed()
     seq_cfg = model_config.seq_cfg
 
     net: MMAudio = get_my_mmaudio(model_config.model_name).to(device, dtype).eval()
@@ -55,13 +53,15 @@ def load_model_components() -> tuple[MMAudio, FeaturesUtils, SequenceConfig]:
 
     return net, feature_utils, seq_cfg
 
+
 # Initialize SmartModel with 2h timeout
 model_manager = SmartModel(load_model_components, timeout_seconds=7200)
+
 
 @torch.inference_mode()
 def video_to_audio(video: gr.Video, prompt: str, negative_prompt: str, seed: int, num_steps: int,
                    cfg_strength: float, duration: float):
-    
+
     # Get loaded models
     net, feature_utils, seq_cfg = model_manager.get()
 
@@ -144,7 +144,7 @@ def image_to_audio(image: gr.Image, prompt: str, negative_prompt: str, seed: int
 @torch.inference_mode()
 def text_to_audio(prompt: str, negative_prompt: str, seed: int, num_steps: int, cfg_strength: float,
                   duration: float):
-    
+
     # Get loaded models
     net, feature_utils, seq_cfg = model_manager.get()
 
@@ -177,176 +177,98 @@ def text_to_audio(prompt: str, negative_prompt: str, seed: int, num_steps: int, 
     return audio_save_path
 
 
-video_to_audio_tab = gr.Interface(
-    fn=video_to_audio,
-    description="""
-    Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
-    Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
+VIDEO_EXAMPLES = [
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_beach.mp4', 'waves, seagulls', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_serpent.mp4', '', 'music', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_seahorse.mp4', 'bubbles', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_india.mp4', 'Indian holy music', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_galloping.mp4', 'galloping', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_kraken.mp4', 'waves, storm', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/mochi_storm.mp4', 'storm', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/hunyuan_spring.mp4', '', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/hunyuan_typing.mp4', 'typing', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/hunyuan_wake_up.mp4', '', '', 0, 25, 4.5, 10],
+    ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_nyc.mp4', '', '', 0, 25, 4.5, 10],
+]
 
-    NOTE: It takes longer to process high-resolution videos (>384 px on the shorter side). 
-    Doing so does not improve results.
-    """,
-    inputs=[
-        gr.Video(),
-        gr.Text(label='Prompt'),
-        gr.Text(label='Negative prompt', value='music'),
-        gr.Number(label='Seed (-1: random)', value=-1, precision=0, minimum=-1),
-        gr.Number(label='Num steps', value=25, precision=0, minimum=1),
-        gr.Number(label='Guidance Strength', value=4.5, minimum=1),
-        gr.Number(label='Duration (sec)', value=8, minimum=1),
-    ],
-    outputs='playable_video',
-    cache_examples=False,
-    title='MMAudio — Video-to-Audio Synthesis',
-    examples=[
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_beach.mp4',
-            'waves, seagulls',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_serpent.mp4',
-            '',
-            'music',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_seahorse.mp4',
-            'bubbles',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_india.mp4',
-            'Indian holy music',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_galloping.mp4',
-            'galloping',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_kraken.mp4',
-            'waves, storm',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/mochi_storm.mp4',
-            'storm',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/hunyuan_spring.mp4',
-            '',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/hunyuan_typing.mp4',
-            'typing',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/hunyuan_wake_up.mp4',
-            '',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-        [
-            'https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_nyc.mp4',
-            '',
-            '',
-            0,
-            25,
-            4.5,
-            10,
-        ],
-    ])
 
-text_to_audio_tab = gr.Interface(
-    fn=text_to_audio,
-    description="""
-    Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
-    Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
-    """,
-    inputs=[
-        gr.Text(label='Prompt'),
-        gr.Text(label='Negative prompt'),
-        gr.Number(label='Seed (-1: random)', value=-1, precision=0, minimum=-1),
-        gr.Number(label='Num steps', value=25, precision=0, minimum=1),
-        gr.Number(label='Guidance Strength', value=4.5, minimum=1),
-        gr.Number(label='Duration (sec)', value=8, minimum=1),
-    ],
-    outputs='audio',
-    cache_examples=False,
-    title='MMAudio — Text-to-Audio Synthesis',
-)
+def create_gradio_app(include_examples: bool = True) -> gr.TabbedInterface:
+    video_to_audio_tab = gr.Interface(
+        fn=video_to_audio,
+        description="""
+        Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
+        Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
 
-image_to_audio_tab = gr.Interface(
-    fn=image_to_audio,
-    description="""
-    Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
-    Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
+        NOTE: It takes longer to process high-resolution videos (>384 px on the shorter side).
+        Doing so does not improve results.
+        """,
+        inputs=[
+            gr.Video(),
+            gr.Text(label='Prompt'),
+            gr.Text(label='Negative prompt', value='music'),
+            gr.Number(label='Seed (-1: random)', value=-1, precision=0, minimum=-1),
+            gr.Number(label='Num steps', value=25, precision=0, minimum=1),
+            gr.Number(label='Guidance Strength', value=4.5, minimum=1),
+            gr.Number(label='Duration (sec)', value=8, minimum=1),
+        ],
+        outputs='playable_video',
+        cache_examples=False,
+        title='MMAudio — Video-to-Audio Synthesis',
+        examples=VIDEO_EXAMPLES if include_examples else None,
+    )
 
-    NOTE: It takes longer to process high-resolution images (>384 px on the shorter side). 
-    Doing so does not improve results.
-    """,
-    inputs=[
-        gr.Image(type='filepath'),
-        gr.Text(label='Prompt'),
-        gr.Text(label='Negative prompt'),
-        gr.Number(label='Seed (-1: random)', value=-1, precision=0, minimum=-1),
-        gr.Number(label='Num steps', value=25, precision=0, minimum=1),
-        gr.Number(label='Guidance Strength', value=4.5, minimum=1),
-        gr.Number(label='Duration (sec)', value=8, minimum=1),
-    ],
-    outputs='playable_video',
-    cache_examples=False,
-    title='MMAudio — Image-to-Audio Synthesis (experimental)',
-)
+    text_to_audio_tab = gr.Interface(
+        fn=text_to_audio,
+        description="""
+        Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
+        Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
+        """,
+        inputs=[
+            gr.Text(label='Prompt'),
+            gr.Text(label='Negative prompt'),
+            gr.Number(label='Seed (-1: random)', value=-1, precision=0, minimum=-1),
+            gr.Number(label='Num steps', value=25, precision=0, minimum=1),
+            gr.Number(label='Guidance Strength', value=4.5, minimum=1),
+            gr.Number(label='Duration (sec)', value=8, minimum=1),
+        ],
+        outputs='audio',
+        cache_examples=False,
+        title='MMAudio — Text-to-Audio Synthesis',
+    )
 
-if __name__ == "__main__":
+    image_to_audio_tab = gr.Interface(
+        fn=image_to_audio,
+        description="""
+        Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
+        Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
+
+        NOTE: It takes longer to process high-resolution images (>384 px on the shorter side).
+        Doing so does not improve results.
+        """,
+        inputs=[
+            gr.Image(type='filepath'),
+            gr.Text(label='Prompt'),
+            gr.Text(label='Negative prompt'),
+            gr.Number(label='Seed (-1: random)', value=-1, precision=0, minimum=-1),
+            gr.Number(label='Num steps', value=25, precision=0, minimum=1),
+            gr.Number(label='Guidance Strength', value=4.5, minimum=1),
+            gr.Number(label='Duration (sec)', value=8, minimum=1),
+        ],
+        outputs='playable_video',
+        cache_examples=False,
+        title='MMAudio — Image-to-Audio Synthesis (experimental)',
+    )
+
+    return gr.TabbedInterface([video_to_audio_tab, text_to_audio_tab, image_to_audio_tab],
+                              ['Video-to-Audio', 'Text-to-Audio', 'Image-to-Audio (experimental)'])
+
+
+if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--port', type=int, default=7860)
     args = parser.parse_args()
 
-    gr.TabbedInterface([video_to_audio_tab, text_to_audio_tab, image_to_audio_tab],
-                       ['Video-to-Audio', 'Text-to-Audio', 'Image-to-Audio (experimental)']).launch(
-                           server_name='0.0.0.0', server_port=args.port, allowed_paths=[output_dir])
+    setup_eval_logging()
+    create_gradio_app(include_examples=True).launch(server_name='0.0.0.0',
+                                                    server_port=args.port,
+                                                    allowed_paths=[output_dir])
