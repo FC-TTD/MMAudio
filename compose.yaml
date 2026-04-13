@@ -3,6 +3,8 @@ services:
     build: .
     volumes:
       - .:/app
+      - /TTD-Data/MMAudio/weights:/app/weights
+      - /TTD-Data/MMAudio/ext_weights:/app/ext_weights
     container_name: mmaudio
     environment:
       - LC_ALL=zh_CN.UTF-8
