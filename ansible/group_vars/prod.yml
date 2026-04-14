@@ -1,0 +1,4 @@
+weights_dir: /TTD-Data/MMAudio/weights
+ext_weights_dir: /TTD-Data/MMAudio/ext_weights
+output_dir: /TTD-Data/MMAudio/output
+caddy_network: caddy

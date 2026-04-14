@@ -1,0 +1,52 @@
+- name: Check compose service status
+  ansible.builtin.shell: >-
+    cd {{ remote_project_root }} &&
+    docker compose -f {{ compose_file }} ps
+  args:
+    executable: /bin/bash
+  register: compose_ps
+  changed_when: false
+
+- name: Check health endpoint
+  ansible.builtin.command: curl -sS -i http://127.0.0.1:{{ mmaudio_port }}/health
+  register: health_check
+  changed_when: false
+  retries: 6
+  delay: 5
+  until: health_check.rc == 0 and '200 OK' in health_check.stdout
+
+- name: Check root page availability
+  ansible.builtin.command: curl -sS -i http://127.0.0.1:{{ mmaudio_port }}/
+  register: root_page
+  changed_when: false
+  retries: 3
+  delay: 3
+  until: root_page.rc == 0
+
+- name: Run real text-to-audio smoke test
+  ansible.builtin.shell: >-
+    curl -sS -D /tmp/mmaudio_verify.headers
+    -o /tmp/mmaudio_verify.wav
+    -X POST http://127.0.0.1:{{ mmaudio_port }}/api/v1/text-to-audio
+    -F prompt='soft wind ambience'
+    -F negative_prompt=''
+    -F seed=0
+    -F num_steps=2
+    -F cfg_strength=3.0
+    -F duration=1 >/dev/null &&
+    python3 -c "from pathlib import Path; payload = Path('/tmp/mmaudio_verify.wav').read_bytes(); assert payload[:4] == b'RIFF', payload[:16]; print(len(payload))"
+  args:
+    executable: /bin/bash
+  register: text_to_audio_smoke
+  changed_when: false
+
+- name: Check ingress hosts from manager
+  ansible.builtin.shell: >-
+    for domain in {{ mmaudio_domains | join(' ') }}; do
+      curl -sS -i -H "Host: ${domain}" http://127.0.0.1/health | head -n 1;
+    done
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ ingress_probe_host }}"
+  changed_when: false
+  register: ingress_probe
