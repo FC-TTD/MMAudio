@@ -2,6 +2,9 @@ services:
   mmaudio:
     image: ${MMAUDIO_IMAGE:-registry.ttd/mmaudio/mmaudio:latest}
     container_name: mmaudio
+    labels:
+      caddy: "mmaudio:80, mmaudio-api:80"
+      caddy.reverse_proxy: "{{upstreams 7860}}"
     environment:
       - LC_ALL=zh_CN.UTF-8
       - TZ=Asia/Shanghai
@@ -19,5 +22,11 @@ services:
               capabilities: [gpu]
     ports:
       - ${MMAUDIO_PORT:-7860}:7860
+    networks:
+      - caddy
     tty: true
     stdin_open: true
+
+networks:
+  caddy:
+    external: true
