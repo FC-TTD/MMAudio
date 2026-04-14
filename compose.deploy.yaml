@@ -1,23 +1,23 @@
 services:
   mmaudio:
-    build: .
-    volumes:
-      - .:/app
-      - /TTD-Data/MMAudio/weights:/app/weights
-      - /TTD-Data/MMAudio/ext_weights:/app/ext_weights
+    image: ${MMAUDIO_IMAGE:-registry.ttd/mmaudio/mmaudio:latest}
     container_name: mmaudio
     environment:
       - LC_ALL=zh_CN.UTF-8
       - TZ=Asia/Shanghai
       - GRADIO_SERVER_NAME=0.0.0.0
+    volumes:
+      - /TTD-Data/MMAudio/weights:/app/weights
+      - /TTD-Data/MMAudio/ext_weights:/app/ext_weights
+      - /TTD-Data/MMAudio/output:/app/output
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: [ "0" ]
+              device_ids: ["${MMAUDIO_GPU_ID:-0}"]
               capabilities: [gpu]
     ports:
-      - 7860:7860
+      - ${MMAUDIO_PORT:-7860}:7860
     tty: true
     stdin_open: true
