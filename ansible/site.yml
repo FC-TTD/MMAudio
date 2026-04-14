@@ -1,0 +1,35 @@
+- name: MMAudio Build CI
+  hosts: build
+  gather_facts: false
+  tasks:
+    - name: Run build preflight
+      import_tasks: tasks/preflight.yml
+      tags:
+        - preflight
+        - ci
+
+    - name: Run CI build and push
+      import_tasks: tasks/ci.yml
+      tags:
+        - ci
+
+- name: MMAudio Compose Deploy
+  hosts: prod
+  gather_facts: false
+  tasks:
+    - name: Run deploy preflight
+      import_tasks: tasks/preflight.yml
+      tags:
+        - preflight
+        - prepare
+        - verify
+
+    - name: Prepare compose deployment
+      import_tasks: tasks/compose_prepare.yml
+      tags:
+        - prepare
+
+    - name: Verify deployed service
+      import_tasks: tasks/verify.yml
+      tags:
+        - verify
