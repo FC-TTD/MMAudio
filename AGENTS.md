@@ -1,14 +1,14 @@
 # MMAudio 运行与部署速记
 
 ## 线上部署
-- `ttd-stage` 上当前运行方式为单容器 `docker compose`。
+- 当前推荐发布方式为镜像部署，目标机使用 `compose.deploy.yaml` 从 `registry.ttd/mmaudio/mmaudio` 拉起单容器服务。
 - 容器名：`mmaudio`
-- 对外端口：`7860`
-- 宿主机代码目录：`/home/docker/MMAudio`
-- 容器内挂载目录：`/app`
-- 启动命令：`python gradio_demo.py`
+- 默认对外端口：`7860`
+- 模型权重统一走 NFS：`/TTD-Data/MMAudio/{weights,ext_weights}`
+- 输出目录：`/TTD-Data/MMAudio/output`
+- 启动命令：`python3 entry.py`
 
 ## 发布方式
-- 线上容器使用宿主机目录 bind mount 到 `/app`，代码变更通常不需要重建镜像。
-- 日常手工发布可直接将改动同步到 `root@ttd-stage:/home/docker/MMAudio/`，然后执行 `docker restart mmaudio`。
-- 若改动涉及基础镜像、Python 依赖或 `Dockerfile`，再考虑重新 `docker compose up -d --build`。
+- 本地或构建机先完成镜像构建后，执行 `scripts/publish_image.sh` 推送到 `registry.ttd`。
+- 目标机执行 `scripts/deploy_remote.sh <host> [image] [gpu_id] [port]` 拉取并部署镜像。
+- 本地 `compose.yaml` 仍保留给开发态 build/run 使用；正式部署不要再把源码目录 bind mount 到 `/app`。
