@@ -2,10 +2,13 @@
 
 ## 线上部署
 - 当前推荐发布方式为镜像部署，目标机使用 `compose.deploy.yaml` 从 `registry.ttd/mmaudio/mmaudio` 拉起单容器服务。
-- 容器名：`mmaudio`
+- 容器名统一为：`mmaudio`
 - 默认对外端口：`7860`
-- 当前正式部署目标：`ttd-legacy` 的 GPU VM `192.168.100.19`（`rocky-latest.ttd`）GPU `1`
-- 当前内网域名：`mmaudio`、`mmaudio-api`
+- 当前正式部署实例：
+  - `ttd-worker` GPU `0`
+  - `ttd-rocky`（`192.168.100.19`）GPU `1`
+- 当前内网域名统一为：`mmaudio`、`mmaudio-api`
+- 两台实例都注册同一组 Caddy host，由 CDP 自动聚合为多 backend 负载均衡。
 - 模型权重统一走 NFS：`/TTD-Data/MMAudio/{weights,ext_weights}`
 - 输出目录：`/TTD-Data/MMAudio/output`
 - 启动命令：`python3 entry.py`
@@ -61,6 +64,7 @@
   - `caddy: "mmaudio:80, mmaudio-api:80"`
   - `caddy.reverse_proxy: "{{upstreams 7860}}"`
   - 外部 `caddy` network
+- 当前正式状态下，`ttd-worker` 与 `ttd-rocky` 都声明相同的 `mmaudio` / `mmaudio-api` labels。
 - 当前自动发现链路不是目标机容器直连 `cdp`，而是：
   - 业务容器 labels
   - `index_api` 聚合
