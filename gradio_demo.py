@@ -1,181 +1,17 @@
-import gc
 import logging
 from argparse import ArgumentParser
-from datetime import datetime
-from fractions import Fraction
-from pathlib import Path
 
 import gradio as gr
 import torch
-import torchaudio
 
-from mmaudio.eval_utils import (ModelConfig, VideoInfo, all_model_cfg, generate, load_image,
-                                load_video, make_video, setup_eval_logging)
-from mmaudio.model.flow_matching import FlowMatching
-from mmaudio.model.networks import MMAudio, get_my_mmaudio
-from mmaudio.model.sequence_config import SequenceConfig
-from mmaudio.model.utils.features_utils import FeaturesUtils
-from ttd_fastapi_utils import SmartModel
+from mmaudio.eval_utils import setup_eval_logging
+from mmaudio.runtime import (generate_image_to_audio, generate_text_to_audio,
+                             generate_video_to_audio, gradio_output_dir)
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 log = logging.getLogger()
-
-device = 'cpu'
-if torch.cuda.is_available():
-    device = 'cuda'
-elif torch.backends.mps.is_available():
-    device = 'mps'
-else:
-    log.warning('CUDA/MPS are not available, running on CPU')
-dtype = torch.bfloat16
-
-model_config: ModelConfig = all_model_cfg['large_44k_v2']
-output_dir = Path('./output/gradio')
-
-
-def load_model_components() -> tuple[MMAudio, FeaturesUtils, SequenceConfig]:
-    model_config.download_if_needed()
-    seq_cfg = model_config.seq_cfg
-
-    net: MMAudio = get_my_mmaudio(model_config.model_name).to(device, dtype).eval()
-    net.load_weights(torch.load(model_config.model_path, map_location=device, weights_only=True))
-    log.info(f'Loaded weights from {model_config.model_path}')
-
-    feature_utils = FeaturesUtils(tod_vae_ckpt=model_config.vae_path,
-                                  synchformer_ckpt=model_config.synchformer_ckpt,
-                                  enable_conditions=True,
-                                  mode=model_config.mode,
-                                  bigvgan_vocoder_ckpt=model_config.bigvgan_16k_path,
-                                  need_vae_encoder=False)
-    feature_utils = feature_utils.to(device, dtype).eval()
-
-    return net, feature_utils, seq_cfg
-
-
-# Initialize SmartModel with 2h timeout
-model_manager = SmartModel(load_model_components, timeout_seconds=7200)
-
-
-@torch.inference_mode()
-def video_to_audio(video: gr.Video, prompt: str, negative_prompt: str, seed: int, num_steps: int,
-                   cfg_strength: float, duration: float):
-
-    # Get loaded models
-    net, feature_utils, seq_cfg = model_manager.get()
-
-    rng = torch.Generator(device=device)
-    if seed >= 0:
-        rng.manual_seed(seed)
-    else:
-        rng.seed()
-    fm = FlowMatching(min_sigma=0, inference_mode='euler', num_steps=num_steps)
-
-    video_info = load_video(video, duration)
-    clip_frames = video_info.clip_frames
-    sync_frames = video_info.sync_frames
-    duration = video_info.duration_sec
-    clip_frames = clip_frames.unsqueeze(0)
-    sync_frames = sync_frames.unsqueeze(0)
-    seq_cfg.duration = duration
-    net.update_seq_lengths(seq_cfg.latent_seq_len, seq_cfg.clip_seq_len, seq_cfg.sync_seq_len)
-
-    audios = generate(clip_frames,
-                      sync_frames, [prompt],
-                      negative_text=[negative_prompt],
-                      feature_utils=feature_utils,
-                      net=net,
-                      fm=fm,
-                      rng=rng,
-                      cfg_strength=cfg_strength)
-    audio = audios.float().cpu()[0]
-
-    current_time_string = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_dir.mkdir(exist_ok=True, parents=True)
-    video_save_path = output_dir / f'{current_time_string}.mp4'
-    make_video(video_info, video_save_path, audio, sampling_rate=seq_cfg.sampling_rate)
-    gc.collect()
-    return video_save_path
-
-
-@torch.inference_mode()
-def image_to_audio(image: gr.Image, prompt: str, negative_prompt: str, seed: int, num_steps: int,
-                   cfg_strength: float, duration: float):
-
-    # Get loaded models
-    net, feature_utils, seq_cfg = model_manager.get()
-
-    rng = torch.Generator(device=device)
-    if seed >= 0:
-        rng.manual_seed(seed)
-    else:
-        rng.seed()
-    fm = FlowMatching(min_sigma=0, inference_mode='euler', num_steps=num_steps)
-
-    image_info = load_image(image)
-    clip_frames = image_info.clip_frames
-    sync_frames = image_info.sync_frames
-    clip_frames = clip_frames.unsqueeze(0)
-    sync_frames = sync_frames.unsqueeze(0)
-    seq_cfg.duration = duration
-    net.update_seq_lengths(seq_cfg.latent_seq_len, seq_cfg.clip_seq_len, seq_cfg.sync_seq_len)
-
-    audios = generate(clip_frames,
-                      sync_frames, [prompt],
-                      negative_text=[negative_prompt],
-                      feature_utils=feature_utils,
-                      net=net,
-                      fm=fm,
-                      rng=rng,
-                      cfg_strength=cfg_strength,
-                      image_input=True)
-    audio = audios.float().cpu()[0]
-
-    current_time_string = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_dir.mkdir(exist_ok=True, parents=True)
-    video_save_path = output_dir / f'{current_time_string}.mp4'
-    video_info = VideoInfo.from_image_info(image_info, duration, fps=Fraction(1))
-    make_video(video_info, video_save_path, audio, sampling_rate=seq_cfg.sampling_rate)
-    gc.collect()
-    return video_save_path
-
-
-@torch.inference_mode()
-def text_to_audio(prompt: str, negative_prompt: str, seed: int, num_steps: int, cfg_strength: float,
-                  duration: float):
-
-    # Get loaded models
-    net, feature_utils, seq_cfg = model_manager.get()
-
-    rng = torch.Generator(device=device)
-    if seed >= 0:
-        rng.manual_seed(seed)
-    else:
-        rng.seed()
-    fm = FlowMatching(min_sigma=0, inference_mode='euler', num_steps=num_steps)
-
-    clip_frames = sync_frames = None
-    seq_cfg.duration = duration
-    net.update_seq_lengths(seq_cfg.latent_seq_len, seq_cfg.clip_seq_len, seq_cfg.sync_seq_len)
-
-    audios = generate(clip_frames,
-                      sync_frames, [prompt],
-                      negative_text=[negative_prompt],
-                      feature_utils=feature_utils,
-                      net=net,
-                      fm=fm,
-                      rng=rng,
-                      cfg_strength=cfg_strength)
-    audio = audios.float().cpu()[0]
-
-    current_time_string = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_dir.mkdir(exist_ok=True, parents=True)
-    audio_save_path = output_dir / f'{current_time_string}.wav'
-    torchaudio.save(audio_save_path, audio, seq_cfg.sampling_rate)
-    gc.collect()
-    return audio_save_path
-
 
 VIDEO_EXAMPLES = [
     ['https://huggingface.co/hkchengrex/MMAudio/resolve/main/examples/sora_beach.mp4', 'waves, seagulls', '', 0, 25, 4.5, 10],
@@ -194,7 +30,7 @@ VIDEO_EXAMPLES = [
 
 def create_gradio_app(include_examples: bool = True) -> gr.TabbedInterface:
     video_to_audio_tab = gr.Interface(
-        fn=video_to_audio,
+        fn=generate_video_to_audio,
         description="""
         Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
         Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
@@ -218,7 +54,7 @@ def create_gradio_app(include_examples: bool = True) -> gr.TabbedInterface:
     )
 
     text_to_audio_tab = gr.Interface(
-        fn=text_to_audio,
+        fn=generate_text_to_audio,
         description="""
         Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
         Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
@@ -237,7 +73,7 @@ def create_gradio_app(include_examples: bool = True) -> gr.TabbedInterface:
     )
 
     image_to_audio_tab = gr.Interface(
-        fn=image_to_audio,
+        fn=generate_image_to_audio,
         description="""
         Project page: <a href="https://hkchengrex.com/MMAudio/">https://hkchengrex.com/MMAudio/</a><br>
         Code: <a href="https://github.com/hkchengrex/MMAudio">https://github.com/hkchengrex/MMAudio</a><br>
@@ -271,4 +107,4 @@ if __name__ == '__main__':
     setup_eval_logging()
     create_gradio_app(include_examples=True).launch(server_name='0.0.0.0',
                                                     server_port=args.port,
-                                                    allowed_paths=[output_dir])
+                                                    allowed_paths=[gradio_output_dir])

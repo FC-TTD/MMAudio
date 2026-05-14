@@ -18,8 +18,8 @@ all:
     prod:
       hosts:
         mmaudio_prod:
-          ansible_host: ttd-worker
-          mmaudio_gpu_id: "0"
+          ansible_host: 192.168.100.19
+          mmaudio_gpu_id: "1"
           mmaudio_port: "7860"
           mmaudio_domains:
             - mmaudio

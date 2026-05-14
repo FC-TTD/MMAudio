@@ -2,6 +2,7 @@ services:
   mmaudio:
     image: ${MMAUDIO_IMAGE:-registry.ttd/mmaudio/mmaudio:latest}
     container_name: mmaudio
+    restart: unless-stopped
     labels:
       caddy: "mmaudio:80, mmaudio-api:80"
       caddy.reverse_proxy: "{{upstreams 7860}}"
