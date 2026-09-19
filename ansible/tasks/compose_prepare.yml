@@ -15,11 +15,9 @@
     cd {{ remote_project_root }} &&
     MMAUDIO_IMAGE={{ image_ref }}
     MMAUDIO_GPU_ID={{ mmaudio_gpu_id }}
-    MMAUDIO_PORT={{ mmaudio_port }}
     docker compose -f {{ compose_file }} pull &&
     MMAUDIO_IMAGE={{ image_ref }}
     MMAUDIO_GPU_ID={{ mmaudio_gpu_id }}
-    MMAUDIO_PORT={{ mmaudio_port }}
     docker compose -f {{ compose_file }} up -d --force-recreate
   args:
     executable: /bin/bash

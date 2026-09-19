@@ -8,15 +8,25 @@
   changed_when: false
 
 - name: Check health endpoint
-  ansible.builtin.command: curl -sS -i http://127.0.0.1:{{ mmaudio_port }}/health
+  ansible.builtin.shell: >-
+    cd {{ remote_project_root }} &&
+    docker compose -f {{ compose_file }} exec -T mmaudio
+    python3 -c "import urllib.request; r = urllib.request.urlopen('http://127.0.0.1:7860/health', timeout=10); assert r.status == 200, r.status; print(r.status)"
+  args:
+    executable: /bin/bash
   register: health_check
   changed_when: false
   retries: 6
   delay: 5
-  until: health_check.rc == 0 and '200 OK' in health_check.stdout
+  until: health_check.rc == 0
 
 - name: Check root page availability
-  ansible.builtin.command: curl -sS -i http://127.0.0.1:{{ mmaudio_port }}/
+  ansible.builtin.shell: >-
+    cd {{ remote_project_root }} &&
+    docker compose -f {{ compose_file }} exec -T mmaudio
+    python3 -c "import urllib.request; r = urllib.request.urlopen('http://127.0.0.1:7860/', timeout=10); assert 200 <= r.status < 400, r.status; print(r.status)"
+  args:
+    executable: /bin/bash
   register: root_page
   changed_when: false
   retries: 3
@@ -24,17 +34,32 @@
   until: root_page.rc == 0
 
 - name: Run real text-to-audio smoke test
-  ansible.builtin.shell: >-
-    curl -sS -D /tmp/mmaudio_verify.headers
-    -o /tmp/mmaudio_verify.wav
-    -X POST http://127.0.0.1:{{ mmaudio_port }}/api/v1/text-to-audio
-    -F prompt='soft wind ambience'
-    -F negative_prompt=''
-    -F seed=0
-    -F num_steps=2
-    -F cfg_strength=3.0
-    -F duration=1 >/dev/null &&
-    python3 -c "from pathlib import Path; payload = Path('/tmp/mmaudio_verify.wav').read_bytes(); assert payload[:4] == b'RIFF', payload[:16]; print(len(payload))"
+  ansible.builtin.shell: |
+    cd {{ remote_project_root }}
+    docker compose -f {{ compose_file }} exec -T mmaudio python3 - <<'PY'
+    import urllib.parse
+    import urllib.request
+
+    data = urllib.parse.urlencode({
+        "prompt": "soft wind ambience",
+        "negative_prompt": "",
+        "seed": "0",
+        "num_steps": "2",
+        "cfg_strength": "3.0",
+        "duration": "1",
+    }).encode()
+    request = urllib.request.Request(
+        "http://127.0.0.1:7860/api/v1/text-to-audio",
+        data=data,
+        method="POST",
+    )
+    request.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(request, timeout=180) as response:
+        payload = response.read()
+        assert response.status == 200, response.status
+        assert payload[:4] == b"RIFF", payload[:16]
+        print(response.status, response.headers.get("content-type", ""), len(payload))
+    PY
   args:
     executable: /bin/bash
   register: text_to_audio_smoke

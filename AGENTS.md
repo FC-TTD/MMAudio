@@ -3,7 +3,7 @@
 ## 线上部署
 - 当前推荐发布方式为镜像部署，目标机使用 `compose.deploy.yaml` 从 `registry.ttd/mmaudio/mmaudio` 拉起单容器服务。
 - 容器名统一为：`mmaudio`
-- 默认对外端口：`7860`
+- 容器内监听端口：`7860`；正式对外访问走 `caddy` / ingress，不发布 host 端口。
 - 当前正式部署实例：
   - `ttd-worker` GPU `0`
   - `ttd-rocky`（`192.168.100.19`）GPU `1`
@@ -37,7 +37,7 @@
 
 ## 快速脚本入口
 - 推已有本地镜像：`scripts/publish_image.sh`
-- 远端触发 compose 部署：`scripts/deploy_remote.sh <host> [image] [gpu_id] [port]`
+- 远端触发 compose 部署：`scripts/deploy_remote.sh <host> [image] [gpu_id]`
 - 这两个脚本可作为便捷入口，但正式推荐主线以 `ansible/` 为准。
 
 ## 低带宽环境建议

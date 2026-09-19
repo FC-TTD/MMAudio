@@ -21,8 +21,6 @@ services:
             - driver: nvidia
               device_ids: ["${MMAUDIO_GPU_ID:-0}"]
               capabilities: [gpu]
-    ports:
-      - ${MMAUDIO_PORT:-7860}:7860
     networks:
       - caddy
     tty: true
