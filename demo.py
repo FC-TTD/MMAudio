@@ -122,10 +122,10 @@ def main():
                       cfg_strength=cfg_strength)
     audio = audios.float().cpu()[0]
     if video_path is not None:
-        save_path = output_dir / f'{video_path.stem}.flac'
+        save_path = output_dir / f'{video_path.stem}.wav'
     else:
         safe_filename = prompt.replace(' ', '_').replace('/', '_').replace('.', '')
-        save_path = output_dir / f'{safe_filename}.flac'
+        save_path = output_dir / f'{safe_filename}.wav'
     torchaudio.save(save_path, audio, seq_cfg.sampling_rate)
 
     log.info(f'Audio saved to {save_path}')

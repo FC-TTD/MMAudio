@@ -1,0 +1,38 @@
+- name: Check Docker CLI
+  ansible.builtin.command: docker --version
+  register: docker_version
+  changed_when: false
+
+- name: Check Docker Compose plugin
+  ansible.builtin.command: docker compose version
+  register: compose_version
+  changed_when: false
+
+- name: Check buildx builders on build host
+  ansible.builtin.command: docker buildx ls
+  register: buildx_ls
+  changed_when: false
+  when: "'build' in group_names"
+
+- name: Check NVIDIA runtime on prod host
+  ansible.builtin.command: nvidia-smi -L
+  register: nvidia_smi
+  changed_when: false
+  when: "'prod' in group_names"
+
+- name: Check caddy network on prod host
+  ansible.builtin.command: docker network inspect {{ caddy_network }}
+  register: caddy_network_inspect
+  changed_when: false
+  when: "'prod' in group_names"
+
+- name: Ensure shared data directories exist on prod host
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ weights_dir }}"
+    - "{{ ext_weights_dir }}"
+    - "{{ output_dir }}"
+  when: "'prod' in group_names"

@@ -1,0 +1,11 @@
+image_tag: "h-{{ lookup('pipe', 'git -C /workspace/MMAudio rev-parse --short=12 HEAD') }}"
+image_ref: "{{ image_repo }}:{{ image_tag }}"
+build_context_sync_excludes:
+  - .git
+  - .venv
+  - .gradio
+  - __pycache__
+  - output
+  - weights
+  - ext_weights
+  - ansible

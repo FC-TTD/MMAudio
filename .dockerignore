@@ -1,0 +1,14 @@
+Dockerfile*
+docker-compose*.yaml
+compose.yaml
+.git
+.gradio
+.venv
+__pycache__/
+*.pyc
+build/
+dist/
+docs/
+output/
+weights/
+ext_weights/

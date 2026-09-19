@@ -1,0 +1,77 @@
+- name: Check compose service status
+  ansible.builtin.shell: >-
+    cd {{ remote_project_root }} &&
+    docker compose -f {{ compose_file }} ps
+  args:
+    executable: /bin/bash
+  register: compose_ps
+  changed_when: false
+
+- name: Check health endpoint
+  ansible.builtin.shell: >-
+    cd {{ remote_project_root }} &&
+    docker compose -f {{ compose_file }} exec -T mmaudio
+    python3 -c "import urllib.request; r = urllib.request.urlopen('http://127.0.0.1:7860/health', timeout=10); assert r.status == 200, r.status; print(r.status)"
+  args:
+    executable: /bin/bash
+  register: health_check
+  changed_when: false
+  retries: 6
+  delay: 5
+  until: health_check.rc == 0
+
+- name: Check root page availability
+  ansible.builtin.shell: >-
+    cd {{ remote_project_root }} &&
+    docker compose -f {{ compose_file }} exec -T mmaudio
+    python3 -c "import urllib.request; r = urllib.request.urlopen('http://127.0.0.1:7860/', timeout=10); assert 200 <= r.status < 400, r.status; print(r.status)"
+  args:
+    executable: /bin/bash
+  register: root_page
+  changed_when: false
+  retries: 3
+  delay: 3
+  until: root_page.rc == 0
+
+- name: Run real text-to-audio smoke test
+  ansible.builtin.shell: |
+    cd {{ remote_project_root }}
+    docker compose -f {{ compose_file }} exec -T mmaudio python3 - <<'PY'
+    import urllib.parse
+    import urllib.request
+
+    data = urllib.parse.urlencode({
+        "prompt": "soft wind ambience",
+        "negative_prompt": "",
+        "seed": "0",
+        "num_steps": "2",
+        "cfg_strength": "3.0",
+        "duration": "1",
+    }).encode()
+    request = urllib.request.Request(
+        "http://127.0.0.1:7860/api/v1/text-to-audio",
+        data=data,
+        method="POST",
+    )
+    request.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(request, timeout=180) as response:
+        payload = response.read()
+        assert response.status == 200, response.status
+        assert payload[:4] == b"RIFF", payload[:16]
+        print(response.status, response.headers.get("content-type", ""), len(payload))
+    PY
+  args:
+    executable: /bin/bash
+  register: text_to_audio_smoke
+  changed_when: false
+
+- name: Check ingress hosts from manager
+  ansible.builtin.shell: >-
+    for domain in {{ mmaudio_domains | join(' ') }}; do
+      curl -sS -i -H "Host: ${domain}" http://127.0.0.1/health | head -n 1;
+    done
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ ingress_probe_host }}"
+  changed_when: false
+  register: ingress_probe
